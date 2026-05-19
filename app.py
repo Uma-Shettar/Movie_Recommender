@@ -1,14 +1,19 @@
 import os
 import pickle
 from flask import Flask, render_template, request
+import gdown
 
 app = Flask(__name__)
 
 with open("movies.pkl", "rb") as f:
     movies = pickle.load(f)
 
-with open("similarity.pkl", "rb") as f:
-    similarity = pickle.load(f)
+url = "https://drive.google.com/file/d/1cm1t-T9GfnpufKgx5BaPOCTOaBug_Sba/view?usp=sharing"
+
+output = "similarity.pkl"
+gdown.download(url, output, quiet=False)
+
+similarity = pickle.load(open("similarity.pkl", "rb"))
 
 @app.route("/")
 def home():
