@@ -38,7 +38,7 @@ Movie_Recommender/
 │   └── recommendation.html
 │
 ├── app.py               # Flask web application
-├── model.ipynb          # Data processing & model building
+├── model.ipynb          # Feature engineering, vectorization & similarity matrix generation
 ├── movies.pkl           # Pickled movie dataframe
 ├── requirements.txt     # Python dependencies
 └── .gitignore
