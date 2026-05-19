@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CineMatch — Movie Recommender</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+
+  <style>
+    /* ── Design tokens ─────────────────────────────── */
+    :root {
+      --bg:        #080b10;
+      --surface:   #0e1319;
+      --border:    #1e2733;
+      --gold:      #e8b84b;
+      --gold-dim:  #9a7a2e;
+      --red:       #c0392b;
+      --text:      #d6dde8;
+      --muted:     #56657a;
+      --input-bg:  #111720;
+    }
+
+    /* ── Base ──────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      overflow-x: hidden;
+    }
+
+    /* ── Grain overlay ─────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+      opacity: 0.035;
+      pointer-events: none;
+    }
+
+    /* ── Film-strip background lines ──────────────── */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background: repeating-linear-gradient(
+        to right,
+        transparent 0px,
+        transparent 58px,
+        rgba(255,255,255,0.012) 58px,
+        rgba(255,255,255,0.012) 60px
+      );
+      pointer-events: none;
+    }
+
+    /* ── Ambient glow blobs ────────────────────────── */
+    .glow-blob {
+      position: fixed; border-radius: 50%;
+      filter: blur(120px); pointer-events: none; z-index: 0;
+    }
+    .glow-blob--gold {
+      width: 500px; height: 500px;
+      background: rgba(232, 184, 75, 0.07);
+      top: -120px; left: -100px;
+    }
+    .glow-blob--red {
+      width: 400px; height: 400px;
+      background: rgba(192, 57, 43, 0.06);
+      bottom: -80px; right: -80px;
+    }
+
+    /* ── Layout wrapper ────────────────────────────── */
+    .page-wrapper {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    /* ── Card ──────────────────────────────────────── */
+    .card-cinema {
+      width: 100%; max-width: 640px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      box-shadow:
+        0 0 0 1px rgba(232,184,75,0.06),
+        0 32px 80px rgba(0,0,0,0.6);
+      animation: cardIn 0.7s cubic-bezier(.22,.9,.36,1) both;
+    }
+    @keyframes cardIn {
+      from { opacity:0; transform: translateY(28px) scale(0.97); }
+      to   { opacity:1; transform: none; }
+    }
+
+    /* ── Card header ───────────────────────────────── */
+    .card-header-cinema {
+      padding: 2.2rem 2.4rem 1.8rem;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+    .card-header-cinema::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--red), var(--gold), var(--red));
+      background-size: 200%;
+      animation: shimmer 3s linear infinite;
+    }
+    @keyframes shimmer {
+      from { background-position: 0% }
+      to   { background-position: 200% }
+    }
+
+    .wordmark {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.6rem;
+      letter-spacing: 0.12em;
+      color: #fff;
+      line-height: 1;
+    }
+    .wordmark span { color: var(--gold); }
+
+    .tagline {
+      margin-top: 0.35rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* decorative reel dots */
+    .reel-dots {
+      position: absolute; right: 2rem; top: 50%; transform: translateY(-50%);
+      display: flex; flex-direction: column; gap: 7px;
+    }
+    .reel-dots span {
+      width: 9px; height: 9px; border-radius: 2px;
+      background: var(--border);
+      display: block;
+    }
+    .reel-dots span:nth-child(2) { background: var(--gold-dim); }
+
+    /* ── Card body ─────────────────────────────────── */
+    .card-body-cinema { padding: 2.2rem 2.4rem 2.4rem; }
+
+    .field-label {
+      display: block;
+      font-size: 0.72rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.65rem;
+    }
+
+    /* ── Search + dropdown ─────────────────────────── */
+    .search-wrap {
+      position: relative;
+      margin-bottom: 1.6rem;
+    }
+
+    .search-icon {
+      position: absolute; left: 1rem; top: 50%; transform: translateY(-50%);
+      color: var(--muted); pointer-events: none;
+      transition: color 0.2s;
+    }
+    .search-wrap:focus-within .search-icon { color: var(--gold); }
+
+    #movieSearch {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 300;
+      padding: 0.85rem 1rem 0.85rem 2.8rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      caret-color: var(--gold);
+    }
+    #movieSearch::placeholder { color: var(--muted); }
+    #movieSearch:focus {
+      border-color: var(--gold-dim);
+      box-shadow: 0 0 0 3px rgba(232,184,75,0.08);
+    }
+
+    /* dropdown list */
+    #dropdownList {
+      display: none;
+      position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 100;
+      background: #131923;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      max-height: 240px;
+      overflow-y: auto;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+    #dropdownList.open { display: block; animation: listIn 0.15s ease both; }
+    @keyframes listIn {
+      from { opacity:0; transform: translateY(-6px); }
+      to   { opacity:1; transform: none; }
+    }
+
+    .drop-item {
+      padding: 0.7rem 1rem;
+      cursor: pointer;
+      font-size: 0.9rem;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.12s, color 0.12s;
+    }
+    .drop-item:last-child { border-bottom: none; }
+    .drop-item:hover, .drop-item.active {
+      background: rgba(232,184,75,0.08);
+      color: var(--gold);
+    }
+    .drop-item mark {
+      background: transparent;
+      color: var(--gold);
+      font-weight: 500;
+    }
+    .drop-empty {
+      padding: 0.85rem 1rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-style: italic;
+    }
+
+    /* hidden real select for form submission */
+    #movieSelect { display: none; }
+
+    /* selected pill */
+    .selected-pill {
+      display: none;
+      align-items: center; gap: 0.5rem;
+      margin-top: 0.6rem;
+      padding: 0.4rem 0.75rem;
+      background: rgba(232,184,75,0.07);
+      border: 1px solid rgba(232,184,75,0.2);
+      border-radius: 2px;
+      font-size: 0.8rem;
+      color: var(--gold);
+      width: fit-content;
+    }
+    .selected-pill.show { display: flex; }
+    .selected-pill button {
+      background: none; border: none; padding: 0;
+      color: var(--gold-dim); cursor: pointer; font-size: 1rem; line-height: 1;
+    }
+    .selected-pill button:hover { color: var(--red); }
+
+    /* ── Divider ───────────────────────────────────── */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border) 30%, var(--border) 70%, transparent);
+      margin: 1.6rem 0;
+    }
+
+    /* ── Submit button ─────────────────────────────── */
+    .btn-recommend {
+      width: 100%;
+      background: linear-gradient(135deg, #9a2e1f 0%, var(--red) 50%, #b8341f 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 3px;
+      color: #fff;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.15rem;
+      letter-spacing: 0.18em;
+      padding: 0.9rem 1rem;
+      cursor: pointer;
+      position: relative; overflow: hidden;
+      transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
+    }
+    .btn-recommend::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.12), transparent 60%);
+      pointer-events: none;
+    }
+    .btn-recommend::after {
+      content: '';
+      position: absolute; top: -50%; left: -60%;
+      width: 40%; height: 200%;
+      background: rgba(255,255,255,0.12);
+      transform: skewX(-20deg);
+      transition: left 0.4s ease;
+    }
+    .btn-recommend:hover::after { left: 130%; }
+    .btn-recommend:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 32px rgba(192,57,43,0.35);
+      filter: brightness(1.05);
+    }
+    .btn-recommend:active { transform: translateY(0); }
+    .btn-recommend:disabled {
+      opacity: 0.4; cursor: not-allowed;
+      transform: none; box-shadow: none;
+    }
+    .btn-recommend .btn-icon { margin-right: 0.4rem; font-size: 1rem; }
+
+    /* ── Footer hint ───────────────────────────────── */
+    .card-footer-cinema {
+      border-top: 1px solid var(--border);
+      padding: 0.9rem 2.4rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .footer-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--gold-dim); flex-shrink: 0;
+    }
+
+    /* ── Result section (shown after submit) ───────── */
+    #resultSection {
+      display: none;
+      margin-top: 1.6rem;
+      padding: 1.2rem;
+      background: rgba(232,184,75,0.04);
+      border: 1px solid rgba(232,184,75,0.15);
+      border-radius: 3px;
+    }
+    #resultSection.show { display: block; animation: cardIn 0.4s ease both; }
+    .result-heading {
+      font-size: 0.72rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.8rem;
+    }
+    .result-list {
+      list-style: none; padding: 0;
+    }
+    .result-list li {
+      padding: 0.45rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      font-size: 0.88rem;
+      display: flex; align-items: center; gap: 0.6rem;
+    }
+    .result-list li:last-child { border-bottom: none; }
+    .result-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1rem;
+      color: var(--gold);
+      width: 1.2rem; text-align: right; flex-shrink: 0;
+    }
+
+    /* ── Responsive tweaks ─────────────────────────── */
+    @media (max-width: 480px) {
+      .card-header-cinema, .card-body-cinema, .card-footer-cinema { padding-left: 1.4rem; padding-right: 1.4rem; }
+      .reel-dots { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="glow-blob glow-blob--gold"></div>
+  <div class="glow-blob glow-blob--red"></div>
+
+  <div class="page-wrapper">
+    <div class="card-cinema">
+
+      <!-- ── Header ── -->
+      <div class="card-header-cinema">
+        <div class="wordmark">Movie<span>Recommender</span></div>
+        <div class="reel-dots">
+          <span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <!-- ── Body ── -->
+      <div class="card-body-cinema">
+        <form method="POST" action="/recommendations" id="recommendForm">
+
+          <label class="field-label" for="movieSearch">Select a movie you like</label>
+
+          <!-- Custom searchable dropdown -->
+          <div class="search-wrap">
+            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              id="movieSearch"
+              placeholder="Search for a movie title…"
+              autocomplete="off"
+              aria-label="Search movies"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="dropdownList"
+            />
+            <div id="dropdownList" role="listbox" aria-label="Movie options"></div>
+          </div>
+
+          <!-- Selected value pill -->
+          <div class="selected-pill" id="selectedPill">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span id="pillText"></span>
+            <button type="button" id="clearBtn" aria-label="Clear selection">✕</button>
+          </div>
+
+          <!-- Hidden select for real form submission -->
+          <select name="movie" id="movieSelect" required>
+            <option value="">-- select --</option>
+            {% for movie in movies_list %}
+            <option value="{{ movie }}">{{ movie }}</option>
+            {% endfor %}
+          </select>
+
+          <div class="divider"></div>
+
+          <button type="submit" class="btn-recommend" id="submitBtn" disabled>
+            <span class="btn-icon">🎬</span> Get Recommendations
+          </button>
+
+        </form>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const MOVIES = {{ movies_list | tojson }};
+    MOVIES.sort((a, b) => a.localeCompare(b));
+
+    /* ─── DOM refs ─────────────────────────────────────────────── */
+    const searchEl   = document.getElementById('movieSearch');
+    const dropdown   = document.getElementById('dropdownList');
+    const selectEl   = document.getElementById('movieSelect');
+    const submitBtn  = document.getElementById('submitBtn');
+    const pill       = document.getElementById('selectedPill');
+    const pillText   = document.getElementById('pillText');
+    const clearBtn   = document.getElementById('clearBtn');
+
+    let activeIdx = -1;
+    let selectedMovie = '';
+
+    /* ─── Filter & render dropdown ─────────────────────────────── */
+    function renderDropdown(query) {
+      const q = query.trim().toLowerCase();
+      const matches = q
+        ? MOVIES.filter(m => m.toLowerCase().includes(q))
+        : MOVIES;
+
+      dropdown.innerHTML = '';
+      activeIdx = -1;
+
+      if (!matches.length) {
+        dropdown.innerHTML = `<div class="drop-empty">No titles found for "${query}"</div>`;
+      } else {
+        matches.forEach((movie, i) => {
+          const div = document.createElement('div');
+          div.className = 'drop-item';
+          div.setAttribute('role', 'option');
+          div.dataset.value = movie;
+
+          if (q) {
+            const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi');
+            div.innerHTML = movie.replace(re, '<mark>$1</mark>');
+          } else {
+            div.textContent = movie;
+          }
+
+          div.addEventListener('mousedown', e => { e.preventDefault(); selectMovie(movie); });
+          dropdown.appendChild(div);
+        });
+      }
+
+      dropdown.classList.add('open');
+      searchEl.setAttribute('aria-expanded', 'true');
+    }
+
+    function closeDropdown() {
+      dropdown.classList.remove('open');
+      searchEl.setAttribute('aria-expanded', 'false');
+      activeIdx = -1;
+    }
+
+    /* ─── Select a movie ────────────────────────────────────────── */
+    function selectMovie(movie) {
+      selectedMovie = movie;
+      searchEl.value = movie;
+      selectEl.value = movie;
+      closeDropdown();
+
+      pillText.textContent = movie;
+      pill.classList.add('show');
+      submitBtn.disabled = false;
+    }
+
+    function clearSelection() {
+      selectedMovie = '';
+      searchEl.value = '';
+      selectEl.value = '';
+      pill.classList.remove('show');
+      submitBtn.disabled = true;
+      searchEl.focus();
+    }
+
+    /* ─── Keyboard navigation ───────────────────────────────────── */
+    searchEl.addEventListener('keydown', e => {
+      const items = dropdown.querySelectorAll('.drop-item');
+      if (!items.length) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeIdx = Math.min(activeIdx + 1, items.length - 1);
+        highlight(items);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeIdx = Math.max(activeIdx - 1, 0);
+        highlight(items);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (activeIdx >= 0 && items[activeIdx]) {
+          selectMovie(items[activeIdx].dataset.value);
+        }
+      } else if (e.key === 'Escape') {
+        closeDropdown();
+      }
+    });
+
+    function highlight(items) {
+      items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
+      if (activeIdx >= 0) items[activeIdx].scrollIntoView({ block: 'nearest' });
+    }
+
+    /* ─── Input events ──────────────────────────────────────────── */
+    searchEl.addEventListener('input', () => {
+      if (selectedMovie && searchEl.value !== selectedMovie) clearSelection();
+      renderDropdown(searchEl.value);
+    });
+
+    searchEl.addEventListener('focus', () => renderDropdown(searchEl.value));
+    searchEl.addEventListener('blur',  () => setTimeout(closeDropdown, 150));
+
+    clearBtn.addEventListener('click', clearSelection);
+
+    document.getElementById('recommendForm').addEventListener('submit', function(e) {
+        if (!selectedMovie) { e.preventDefault(); }
+    });
+
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

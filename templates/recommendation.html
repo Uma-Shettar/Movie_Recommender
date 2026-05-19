@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CineMatch — Recommendations</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet"/>
+
+  <style>
+    :root {
+      --bg:       #080b10;
+      --surface:  #0e1319;
+      --surface2: #111820;
+      --border:   #1e2733;
+      --gold:     #e8b84b;
+      --gold-dim: #9a7a2e;
+      --red:      #c0392b;
+      --text:     #d6dde8;
+      --muted:    #56657a;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      overflow-x: hidden;
+    }
+
+    /* grain overlay */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+      opacity: 0.032;
+    }
+
+    /* ambient blobs */
+    .blob {
+      position: fixed; border-radius: 50%;
+      filter: blur(130px); pointer-events: none; z-index: 0;
+    }
+    .blob--gold { width:500px; height:500px; background:rgba(232,184,75,.065); top:-150px; left:-100px; }
+    .blob--red  { width:400px; height:400px; background:rgba(192,57,43,.055);  bottom:-80px; right:-80px; }
+
+    /* ── Layout ───────────────────────────────────── */
+    .page { position: relative; z-index: 1; min-height: 100vh; padding-bottom: 5rem; }
+
+    /* ── Navbar ───────────────────────────────────── */
+    .topbar {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(8,11,16,0.88);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.9rem 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      animation: slideDown 0.45s ease both;
+    }
+    @keyframes slideDown {
+      from { opacity:0; transform:translateY(-100%); }
+      to   { opacity:1; transform:none; }
+    }
+    .wordmark {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.7rem; letter-spacing: 0.12em; color: #fff;
+    }
+    .wordmark span { color: var(--gold); }
+
+    .back-btn {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase;
+      color: #fff; text-decoration: none;
+      background: rgba(192,57,43,0.85);
+      border: 1px solid rgba(192,57,43,0.6);
+      border-radius: 2px;
+      padding: 0.5rem 1rem;
+      font-weight: 500;
+      transition: background .2s, border-color .2s, transform .15s, box-shadow .2s;
+    }
+    .back-btn:hover {
+      background: var(--red);
+      border-color: var(--red);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(192,57,43,0.4);
+    }
+    .back-btn:active { transform: none; }
+
+    /* ── Hero ─────────────────────────────────────── */
+    .hero {
+      text-align: center;
+      padding: 4rem 1.5rem 2.5rem;
+      animation: fadeUp 0.55s 0.05s ease both;
+    }
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(18px); }
+      to   { opacity:1; transform:none; }
+    }
+    .hero-eyebrow {
+      font-size: 0.7rem; letter-spacing: 0.28em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 0.6rem;
+    }
+    .hero-heading {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(2.2rem, 5vw, 3.6rem);
+      letter-spacing: 0.06em; line-height: 1.05; color: #fff;
+    }
+    .hero-heading em {
+      font-style: normal;
+      background: linear-gradient(90deg, var(--gold), #f5d580, var(--gold));
+      background-size: 200%;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: goldFlow 3s linear infinite;
+    }
+    @keyframes goldFlow { from{background-position:0%} to{background-position:200%} }
+
+    .hero-sub {
+      margin-top: 0.65rem;
+      font-size: 0.85rem; color: var(--muted);
+    }
+
+    /* pill count */
+    .pill-count {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      margin-top: 1.4rem;
+      padding: 0.38rem 1rem;
+      background: rgba(232,184,75,.06);
+      border: 1px solid rgba(232,184,75,.18);
+      border-radius: 99px;
+      font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--gold-dim);
+    }
+    .pill-dot { width:6px; height:6px; border-radius:50%; background:var(--gold); flex-shrink:0; }
+
+    /* divider */
+    .rule {
+      height: 1px; max-width: 860px; margin: 2.5rem auto 0;
+      background: linear-gradient(90deg, transparent, var(--border) 25%, var(--border) 75%, transparent);
+    }
+
+    /* ── List container ───────────────────────────── */
+    .list-wrap {
+      max-width: 860px; margin: 0 auto;
+      padding: 2.5rem 1.5rem 0;
+    }
+
+    /* ── Movie row ────────────────────────────────── */
+    .movie-row {
+      display: flex; align-items: center; gap: 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 0.6rem;
+      position: relative; overflow: hidden;
+      opacity: 0; transform: translateX(-16px);
+      animation: rowIn 0.4s ease forwards;
+      transition: border-color .2s, background .2s, transform .2s, box-shadow .2s;
+      cursor: default;
+    }
+    @keyframes rowIn {
+      to { opacity:1; transform:none; }
+    }
+    .movie-row::before {
+      content: '';
+      position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+      background: linear-gradient(to bottom, var(--red), var(--gold));
+      opacity: 0;
+      transition: opacity .2s;
+    }
+    .movie-row:hover {
+      background: var(--surface2);
+      border-color: rgba(232,184,75,.2);
+      transform: translateX(4px);
+      box-shadow: 0 6px 28px rgba(0,0,0,.35);
+    }
+    .movie-row:hover::before { opacity: 1; }
+
+    /* stagger delays */
+    .movie-row:nth-child(1)  { animation-delay:.06s }
+    .movie-row:nth-child(2)  { animation-delay:.10s }
+    .movie-row:nth-child(3)  { animation-delay:.14s }
+    .movie-row:nth-child(4)  { animation-delay:.18s }
+    .movie-row:nth-child(5)  { animation-delay:.22s }
+    .movie-row:nth-child(6)  { animation-delay:.26s }
+    .movie-row:nth-child(7)  { animation-delay:.30s }
+    .movie-row:nth-child(8)  { animation-delay:.34s }
+    .movie-row:nth-child(9)  { animation-delay:.38s }
+    .movie-row:nth-child(10) { animation-delay:.42s }
+
+    /* rank number */
+    .rank {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem; letter-spacing: 0.05em;
+      color: var(--border);
+      min-width: 2rem; text-align: right;
+      line-height: 1;
+      transition: color .2s;
+      flex-shrink: 0;
+    }
+    .movie-row:hover .rank { color: var(--gold-dim); }
+
+    /* separator */
+    .sep { width: 1px; height: 2rem; background: var(--border); flex-shrink: 0; }
+
+    /* film icon */
+    .movie-icon {
+      width: 36px; height: 36px; border-radius: 2px; flex-shrink: 0;
+      background: rgba(232,184,75,.07);
+      border: 1px solid rgba(232,184,75,.12);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--gold-dim);
+      transition: background .2s, border-color .2s, color .2s;
+    }
+    .movie-row:hover .movie-icon {
+      background: rgba(232,184,75,.13);
+      border-color: rgba(232,184,75,.3);
+      color: var(--gold);
+    }
+
+    /* title */
+    .movie-title {
+      flex: 1;
+      font-size: 0.95rem; font-weight: 400; color: var(--text);
+      line-height: 1.3;
+    }
+
+    /* match score */
+    .match-wrap {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 0.28rem;
+      flex-shrink: 0; min-width: 72px;
+    }
+    .match-pct {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.05rem; letter-spacing: 0.05em;
+      color: var(--gold); line-height: 1;
+    }
+    .match-bar {
+      width: 72px; height: 3px;
+      background: var(--border); border-radius: 99px; overflow: hidden;
+    }
+    .match-fill {
+      height: 100%; width: 0;
+      border-radius: 99px;
+      transition: width 1s cubic-bezier(.22,.9,.36,1);
+    }
+    /* bar colour changes with similarity level */
+    .match-fill.level-high     { background: linear-gradient(90deg, #2e7a4a, #3dba6e); }
+    .match-fill.level-good     { background: linear-gradient(90deg, var(--gold-dim), var(--gold)); }
+    .match-fill.level-moderate { background: linear-gradient(90deg, #7a5c2e, #c49a4a); }
+    .match-fill.level-low      { background: linear-gradient(90deg, #7a2e2e, #c04a4a); }
+
+    .match-label {
+      font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase;
+      font-weight: 500;
+    }
+    .match-label.level-high     { color: #3dba6e; }
+    .match-label.level-good     { color: var(--gold); }
+    .match-label.level-moderate { color: #c49a4a; }
+    .match-label.level-low      { color: #c04a4a; }
+
+    /* ── Empty state ──────────────────────────────── */
+    .empty {
+      text-align: center; padding: 5rem 2rem;
+      animation: fadeUp 0.5s .1s ease both; opacity: 0;
+    }
+    .empty-icon { font-size: 2.8rem; opacity: .35; margin-bottom: .8rem; }
+    .empty-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem; letter-spacing: .08em; color: var(--muted);
+    }
+    .empty-sub { font-size: .82rem; color: var(--muted); opacity:.65; margin-top:.4rem; }
+
+    /* ── Footer ───────────────────────────────────── */
+    .footer {
+      max-width: 860px; margin: 3.5rem auto 0; padding: 1.2rem 1.5rem 0;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: .7rem; letter-spacing: .08em; color: var(--muted);
+    }
+
+    @media (max-width: 540px) {
+      .topbar { padding: .8rem 1rem; }
+      .hero { padding: 2.8rem 1rem 1.8rem; }
+      .list-wrap { padding: 1.8rem 1rem 0; }
+      .match-wrap { display: none; }
+      .sep { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="blob blob--gold"></div>
+  <div class="blob blob--red"></div>
+
+  <div class="page">
+
+    <!-- Navbar -->
+    <nav class="topbar">
+      <div class="wordmark">Movie<span>Recommender</span></div>
+      <a href="/" class="back-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        New Search
+      </a>
+    </nav>
+
+    <!-- Hero -->
+    <header class="hero">
+      <div class="hero-eyebrow">Because you watched</div>
+      <h1 class="hero-heading">
+        Your<br/><em id="heroTitle">Top Picks</em>
+      </h1>
+      <p class="hero-sub">Movies handpicked to match your taste</p>
+      <div class="pill-count">
+        <div class="pill-dot"></div>
+        <span id="pillText">— titles</span>
+      </div>
+    </header>
+
+    <div class="rule"></div>
+
+    <!-- List -->
+    <main class="list-wrap" id="movieList"></main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span>Powered by collaborative filtering</span>
+      <span>CineMatch &mdash; 2025</span>
+    </footer>
+
+  </div>
+
+  <script>
+
+    const RECS     = {{ recommendations | tojson }};
+    const SELECTED = {{ selected_movie  | tojson }};
+
+    
+
+    /* ── Cosine similarity helpers ──
+       Levels based on normalized % (relative to top result)        */
+    function cosineLevel(score, topScore) {
+      const n = score / topScore;
+      if (n >= 0.80) return 'high';
+      if (n >= 0.55) return 'good';
+      if (n >= 0.30) return 'moderate';
+      return 'low';
+    }
+    function cosineLabel(score, topScore) {
+      const n = score / topScore;
+      if (n >= 0.80) return 'Best Match';
+      if (n >= 0.55) return 'Good Match';
+      if (n >= 0.30) return 'Fair Match';
+      return 'Weak Match';
+    }
+
+    /* ── Render ── */
+    const list      = document.getElementById('movieList');
+    const heroTitle = document.getElementById('heroTitle');
+    const pillText  = document.getElementById('pillText');
+
+    heroTitle.textContent = SELECTED || 'Top Picks';
+    pillText.textContent  = `${RECS.length} title${RECS.length !== 1 ? 's' : ''} found`;
+
+    if (!RECS || RECS.length === 0) {
+      list.innerHTML = `
+        <div class="empty">
+          <div class="empty-icon">🎬</div>
+          <div class="empty-title">No Recommendations Found</div>
+          <div class="empty-sub">Try a different movie to get personalised picks.</div>
+        </div>`;
+    } else {
+      const topScore = RECS[0].score;  // list is sorted desc from Flask
+
+      RECS.forEach((item, i) => {
+        const normalizedPct = Math.round((item.score / topScore) * 100);
+        const level = cosineLevel(item.score, topScore);
+        const label = cosineLabel(item.score, topScore);
+
+        const row = document.createElement('div');
+        row.className = 'movie-row';
+        row.innerHTML = `
+          <span class="rank">${String(i + 1).padStart(2, '0')}</span>
+          <div class="sep"></div>
+          <div class="movie-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="2" width="20" height="20" rx="2.5"/>
+              <path d="M7 2v20M17 2v20M2 12h20M2 7h5M17 7h5M2 17h5M17 17h5"/>
+            </svg>
+          </div>
+          <span class="movie-title">${item.title}</span>
+          <div class="match-wrap">
+            <span class="match-pct">${normalizedPct}%</span>
+            <div class="match-bar">
+              <div class="match-fill level-${level}" data-pct="${normalizedPct}"></div>
+            </div>
+            <span class="match-label level-${level}">${label}</span>
+          </div>`;
+        list.appendChild(row);
+      });
+
+      /* animate bars after paint */
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          document.querySelectorAll('.match-fill').forEach(el => {
+            el.style.width = el.dataset.pct + '%';
+          });
+        }, 350);
+      });
+    }
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
