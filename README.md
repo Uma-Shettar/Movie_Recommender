@@ -5,6 +5,12 @@
 A content-based movie recommendation web app built with Python, Flask, and scikit-learn. Select a movie you like and get the most similar movies ranked by similarity.
 
 ---
+ 
+## Screenshots
+<img width="1918" height="983" alt="image" src="https://github.com/user-attachments/assets/a2ca2e72-6a41-441a-ad9f-99932852da63" />
+<img width="1907" height="987" alt="Screenshot 2026-05-20 121525" src="https://github.com/user-attachments/assets/e1fa4427-0651-4bb4-a825-7cd3ab0c7977" /> 
+ 
+---
 
 ## How It Works
 
